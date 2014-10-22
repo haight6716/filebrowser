@@ -14,7 +14,7 @@ from django.core.files import File
 
 # FILEBROWSER IMPORTS
 from filebrowser.settings import EXTENSIONS, VERSIONS, ADMIN_VERSIONS, VERSIONS_BASEDIR, VERSION_QUALITY, PLACEHOLDER, FORCE_PLACEHOLDER, SHOW_PLACEHOLDER, STRICT_PIL, IMAGE_MAXBLOCK, DEFAULT_PERMISSIONS
-from filebrowser.utils import path_strip, scale_and_crop
+from filebrowser.utils import path_strip
 from django.utils.encoding import python_2_unicode_compatible, smart_str
 
 # PIL import
@@ -203,6 +203,20 @@ class FileListing():
         if self._results_walk_filtered is not None:
             return self._results_walk_filtered
         return len(self.files_walk_filtered())
+
+from django.utils.safestring import mark_safe
+
+class PseudoFileObject(object):
+
+    def __init__(self, path):
+        self.path = path
+
+    def __str__(self):
+        return self.path
+
+    @property
+    def url(self):
+        return mark_safe(self.path)
 
 
 @python_2_unicode_compatible
@@ -494,7 +508,15 @@ class FileObject():
 
     def version_name(self, version_suffix):
         "Name of a version"  # FIXME: version_name for version?
-        return self.filename_root + "_" + version_suffix + self.extension
+        from django.core.urlresolvers import reverse
+        from handler.templatetags import staticlink
+        return reverse('thumbnail', kwargs={
+            'tw': VERSIONS[version_suffix]['width'],
+            'th': VERSIONS[version_suffix]['height'],
+            'mtime': staticlink.mtime(self.path),
+            'path': self.path,
+        })
+#        return self.filename_root + "_" + version_suffix + self.extension
 
     def version_path(self, version_suffix):
         "Path to a version (relative to storage location)"  # FIXME: version_path for version?
@@ -502,51 +524,7 @@ class FileObject():
 
     def version_generate(self, version_suffix):
         "Generate a version"  # FIXME: version_generate for version?
-        path = self.path
-        version_path = self.version_path(version_suffix)
-        if not self.site.storage.isfile(version_path):
-            version_path = self._generate_version(version_suffix)
-        elif self.site.storage.modified_time(path) > self.site.storage.modified_time(version_path):
-            version_path = self._generate_version(version_suffix)
-        return FileObject(version_path, site=self.site)
-
-    def _generate_version(self, version_suffix):
-        """
-        Generate Version for an Image.
-        value has to be a path relative to the storage location.
-        """
-
-        tmpfile = File(NamedTemporaryFile())
-
-        try:
-            f = self.site.storage.open(self.path)
-        except IOError:
-            return ""
-        im = Image.open(f)
-        version_path = self.version_path(version_suffix)
-        version_dir, version_basename = os.path.split(version_path)
-        root, ext = os.path.splitext(version_basename)
-        version = scale_and_crop(im, VERSIONS[version_suffix]['width'], VERSIONS[version_suffix]['height'], VERSIONS[version_suffix]['opts'])
-        if not version:
-            version = im
-        # version methods as defined with VERSIONS
-        if 'methods' in VERSIONS[version_suffix].keys():
-            for m in VERSIONS[version_suffix]['methods']:
-                if callable(m):
-                    version = m(version)
-        # save version
-        try:
-            version.save(tmpfile, format=Image.EXTENSION[ext.lower()], quality=VERSION_QUALITY, optimize=(os.path.splitext(version_path)[1] != '.gif'))
-        except IOError:
-            version.save(tmpfile, format=Image.EXTENSION[ext.lower()], quality=VERSION_QUALITY)
-        # remove old version, if any
-        if version_path != self.site.storage.get_available_name(version_path):
-            self.site.storage.delete(version_path)
-        self.site.storage.save(version_path, tmpfile)
-        # set permissions
-        if DEFAULT_PERMISSIONS is not None:
-            os.chmod(self.site.storage.path(version_path), DEFAULT_PERMISSIONS)
-        return version_path
+        return PseudoFileObject(self.version_name(version_suffix))
 
     # DELETE METHODS
     # delete()
