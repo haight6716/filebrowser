@@ -173,7 +173,8 @@ def handle_file_upload(path, file, site):
 
 def filebrowser_view(view):
     "Only let staff browse the files"
-    return staff_member_required(never_cache(xframe_options_sameorigin(view)))
+    from handler.auth import AdminAuthVanilla
+    return AdminAuthVanilla()(never_cache(xframe_options_sameorigin(view)))
 
 
 class FileBrowserSite(object):
