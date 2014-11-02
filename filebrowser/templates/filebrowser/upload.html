@@ -97,6 +97,8 @@
 <!-- CONTENT -->
 {% block content %}
 <div id="content-main">
+{% if query.pop %}
+{% include "filebrowser/include/breadcrumbs.html" %}{% endif %}
     <form>
         <div>
             <fieldset class="module aligned">
