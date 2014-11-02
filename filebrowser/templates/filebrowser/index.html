@@ -72,6 +72,8 @@
 
 <!-- CONTENT -->
 {% block content %}
+{% if query.pop %}
+{% include "filebrowser/include/breadcrumbs.html" %}{% endif %}
     <div id="content-main">
         <!-- OBJECT-TOOLS -->
         {% block object-tools %}
